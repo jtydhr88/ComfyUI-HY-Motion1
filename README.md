@@ -41,11 +41,13 @@ Download using huggingface-cli:
 
 ```bash
 # Create directory first
-mkdir -p ComfyUI/models/HY-Motion/ckpts/tencent
+mkdir -p models/HY-Motion/ckpts/tencent
 
 # Download models
-huggingface-cli download tencent/HY-Motion-1.0 --local-dir ComfyUI/models/HY-Motion/ckpts/tencent
+huggingface-cli download tencent/HY-Motion-1.0 --local-dir models/HY-Motion/ckpts/tencent
 ```
+
+or manually download from https://huggingface.co/tencent/HY-Motion-1.0/tree/main
 
 ## Node Documentation
 
