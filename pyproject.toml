@@ -1,7 +1,7 @@
 [project]
 name = "ComfyUI-HY-Motion1"
 description = "A ComfyUI plugin based on HY-Motion 1.0 for text-to-3D human motion generation."
-version = "0.3.0"
+version = "0.3.1"
 license = "MIT"
 readme = "README.md"
 requires-python = ">=3.9"
