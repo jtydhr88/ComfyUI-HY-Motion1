@@ -13,7 +13,7 @@ WEB_DIRECTORY = "./web"
 # Track initialization status
 INIT_SUCCESS = False
 
-if 'pytest' not in sys.modules:
+if not os.environ.get('PYTEST_CURRENT_TEST'):
     print("[ComfyUI-HY-Motion1] Initializing custom node...")
 
     try:
@@ -53,4 +53,4 @@ else:
     NODE_DISPLAY_NAME_MAPPINGS = {}
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
-__version__ = "1.0.0"
+__version__ = "0.3.1"
