@@ -245,11 +245,13 @@ class ResponseParser:
 
 class PromptRewriter:
     def __init__(
-        self, host: Optional[str] = None, model_path: Optional[str] = None, parser: Optional[ResponseParser] = None
+        self, host: Optional[str] = None, model_path: Optional[str] = None, parser: Optional[ResponseParser] = None,
+        offload_to_cpu: bool = False
     ):
         self.parser = parser or ResponseParser()
         self.logger = logging.getLogger(__name__)
         self.host = host
+        self.offload_to_cpu = offload_to_cpu
         if host:
             self.api = OpenAIChatApi(
                 ApiConfig(
@@ -268,14 +270,34 @@ class PromptRewriter:
 
     def _load_model(self):
         if self.model is None:
-            print(f">>> Loading prompter model from {self.model_path}")
+            print(f">>> Loading prompter model from {self.model_path}, offload_to_cpu={self.offload_to_cpu}")
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_path,
-                torch_dtype=torch.float16,
-                device_map="auto",
-                load_in_4bit=True,
-            )
+
+            if self.offload_to_cpu:
+                # Load entirely on CPU (slower but saves GPU memory)
+                print(">>> Loading prompter on CPU...")
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_path,
+                    torch_dtype=torch.float32,
+                    device_map="cpu",
+                    low_cpu_mem_usage=True,
+                )
+            else:
+                # Load on GPU with 4bit quantization
+                from transformers import BitsAndBytesConfig
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.float16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                )
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_path,
+                    quantization_config=quantization_config,
+                    device_map="auto",
+                    low_cpu_mem_usage=True,
+                )
+
             self.model.eval()
 
     def rewrite_prompt_and_infer_time(
@@ -303,16 +325,25 @@ class PromptRewriter:
                 tokenize=False,
                 add_generation_prompt=True,
             )
-            inputs = self.tokenizer([full_prompt], return_tensors="pt").to(self.model.device)
+            # Get device from model parameters
+            device = next(self.model.parameters()).device
+            inputs = self.tokenizer([full_prompt], return_tensors="pt").to(device)
             with torch.no_grad():
                 outputs = self.model.generate(**inputs, max_new_tokens=8192)
             response = self.tokenizer.decode(outputs[0][inputs.input_ids.shape[1] :].tolist(), skip_special_tokens=True)
 
+            print(f">>> [Prompter] Raw LLM response:\n{response[:500]}")
+
             try:
                 json_str = re.search(r"\{.*\}", response, re.DOTALL).group()
+                print(f">>> [Prompter] Extracted JSON: {json_str}")
                 result = json.loads(json_str)
-                return round(float(result["duration"]) / 30.0, 2), result["short_caption"]
-            except:
+                duration = round(float(result["duration"]) / 30.0, 2)
+                short_caption = result["short_caption"]
+                print(f">>> [Prompter] Parsed - duration: {result['duration']} frames, caption: {short_caption}")
+                return duration, short_caption
+            except Exception as e:
+                print(f">>> [Prompter] JSON parse failed: {e}, returning original text")
                 return 5.0, text
 
 

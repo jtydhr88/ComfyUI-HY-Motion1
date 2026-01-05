@@ -1,0 +1,649 @@
+{
+  "id": "49fbd9ce-342c-4413-82b6-296fb9633dc5",
+  "revision": 0,
+  "last_node_id": 21,
+  "last_link_id": 23,
+  "nodes": [
+    {
+      "id": 7,
+      "type": "PreviewImage",
+      "pos": [
+        -4461.43554577987,
+        -4644.7590612208105
+      ],
+      "size": [
+        311.6276041666667,
+        981.4713541666667
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 6
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 16,
+      "type": "HYMotionExportFBX",
+      "pos": [
+        -5862.999289088608,
+        -4121.082309059713
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "motion_data",
+          "type": "HYMOTION_DATA",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "fbx_paths",
+          "type": "STRING",
+          "links": [
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HYMotionExportFBX"
+      },
+      "widgets_values": [
+        "hymotion_fbx",
+        "motion"
+      ]
+    },
+    {
+      "id": 17,
+      "type": "Preview3D",
+      "pos": [
+        -5526.581758887509,
+        -4022.98452904398
+      ],
+      "size": [
+        680.3776041666667,
+        733.8671875
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "camera_info",
+          "shape": 7,
+          "type": "LOAD3D_CAMERA",
+          "link": null
+        },
+        {
+          "name": "bg_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "model_file",
+          "type": "STRING",
+          "widget": {
+            "name": "model_file"
+          },
+          "link": 18
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "Preview3D",
+        "Last Time Model File": "hymotion_fbx/motion_20260105_101959028_03a46009_000.fbx",
+        "Scene Config": {
+          "showGrid": true,
+          "backgroundColor": "#282828",
+          "backgroundImage": "",
+          "backgroundRenderMode": "tiled"
+        },
+        "Camera Config": {
+          "cameraType": "perspective",
+          "fov": 35,
+          "state": {
+            "position": {
+              "x": 18.506178567556958,
+              "y": 15.915315410689956,
+              "z": 18.506177822331125
+            },
+            "target": {
+              "x": 0,
+              "y": 2.429131843764164,
+              "z": 0
+            },
+            "zoom": 1,
+            "cameraType": "perspective"
+          }
+        },
+        "Light Config": {
+          "intensity": 3
+        }
+      },
+      "widgets_values": [
+        "hymotion_fbx/motion_20260105_101959028_03a46009_000.fbx",
+        ""
+      ]
+    },
+    {
+      "id": 14,
+      "type": "HYMotionPreviewAnimation",
+      "pos": [
+        -6299.16510578421,
+        -3859.78337355805
+      ],
+      "size": [
+        676.8229166666667,
+        684.5052083333334
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "motion_data",
+          "type": "HYMOTION_DATA",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "motion_data",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HYMotionPreviewAnimation"
+      },
+      "widgets_values": [
+        0,
+        ""
+      ]
+    },
+    {
+      "id": 10,
+      "type": "HYMotionEncodeText",
+      "pos": [
+        -6565.941374418181,
+        -4301.481225643217
+      ],
+      "size": [
+        333.33333333333337,
+        88
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "llm",
+          "type": "HYMOTION_LLM",
+          "link": 16
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "conditioning",
+          "type": "HYMOTION_COND",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HYMotionEncodeText"
+      },
+      "widgets_values": [
+        "A person is walking"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "HYMotionLoadNetwork",
+      "pos": [
+        -6548.704719711344,
+        -4475.961645852683
+      ],
+      "size": [
+        390.2604166666667,
+        58
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "network",
+          "type": "HYMOTION_NET",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HYMotionLoadNetwork"
+      },
+      "widgets_values": [
+        "HY-Motion-1.0"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "HYMotionPreview",
+      "pos": [
+        -5640.4826293693795,
+        -4348.929179995935
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "motion_data",
+          "type": "HYMOTION_DATA",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HYMotionPreview"
+      },
+      "widgets_values": [
+        0,
+        5,
+        512
+      ]
+    },
+    {
+      "id": 5,
+      "type": "HYMotionGenerate",
+      "pos": [
+        -6314.182393858043,
+        -4134.953790139952
+      ],
+      "size": [
+        385.1041666666667,
+        174
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "network",
+          "type": "HYMOTION_NET",
+          "link": 3
+        },
+        {
+          "name": "conditioning",
+          "type": "HYMOTION_COND",
+          "link": 10
+        },
+        {
+          "name": "duration",
+          "type": "FLOAT",
+          "widget": {
+            "name": "duration"
+          },
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "motion_data",
+          "type": "HYMOTION_DATA",
+          "links": [
+            5,
+            15,
+            17
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HYMotionGenerate"
+      },
+      "widgets_values": [
+        5,
+        1198277182,
+        "randomize",
+        5,
+        1
+      ]
+    },
+    {
+      "id": 20,
+      "type": "PreviewAny",
+      "pos": [
+        -6667.20530154087,
+        -3990.1958419327966
+      ],
+      "size": [
+        210,
+        166
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 22
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 21,
+      "type": "PreviewAny",
+      "pos": [
+        -6711.55076110567,
+        -3707.2494205983962
+      ],
+      "size": [
+        210,
+        166
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 23
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 18,
+      "type": "HYMotionLoadPrompter",
+      "pos": [
+        -7379.322366163586,
+        -4119.468566014548
+      ],
+      "size": [
+        272.6578125,
+        82
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "prompter",
+          "type": "HYMOTION_PROMPTER",
+          "links": [
+            19
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HYMotionLoadPrompter"
+      },
+      "widgets_values": [
+        "(auto download)",
+        false
+      ]
+    },
+    {
+      "id": 15,
+      "type": "HYMotionLoadLLM",
+      "pos": [
+        -6988.391343044315,
+        -4249.018255104544
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "llm",
+          "type": "HYMOTION_LLM",
+          "links": [
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HYMotionLoadLLM"
+      },
+      "widgets_values": [
+        "int4",
+        true
+      ]
+    },
+    {
+      "id": 19,
+      "type": "HYMotionRewritePrompt",
+      "pos": [
+        -7348.186183145976,
+        -3862.367848681507
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "prompter",
+          "type": "HYMOTION_PROMPTER",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "rewritten_text",
+          "type": "STRING",
+          "links": [
+            21,
+            22
+          ]
+        },
+        {
+          "name": "duration",
+          "type": "FLOAT",
+          "links": [
+            20,
+            23
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "HYMotionRewritePrompt"
+      },
+      "widgets_values": [
+        "guy running really fast and stops  "
+      ]
+    }
+  ],
+  "links": [
+    [
+      3,
+      4,
+      0,
+      5,
+      0,
+      "HYMOTION_NET"
+    ],
+    [
+      5,
+      5,
+      0,
+      6,
+      0,
+      "HYMOTION_DATA"
+    ],
+    [
+      6,
+      6,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      10,
+      10,
+      0,
+      5,
+      1,
+      "HYMOTION_COND"
+    ],
+    [
+      15,
+      5,
+      0,
+      14,
+      0,
+      "HYMOTION_DATA"
+    ],
+    [
+      16,
+      15,
+      0,
+      10,
+      0,
+      "HYMOTION_LLM"
+    ],
+    [
+      17,
+      5,
+      0,
+      16,
+      0,
+      "HYMOTION_DATA"
+    ],
+    [
+      18,
+      16,
+      0,
+      17,
+      2,
+      "STRING"
+    ],
+    [
+      19,
+      18,
+      0,
+      19,
+      0,
+      "HYMOTION_PROMPTER"
+    ],
+    [
+      20,
+      19,
+      1,
+      5,
+      2,
+      "FLOAT"
+    ],
+    [
+      21,
+      19,
+      0,
+      10,
+      1,
+      "STRING"
+    ],
+    [
+      22,
+      19,
+      0,
+      20,
+      0,
+      "STRING"
+    ],
+    [
+      23,
+      19,
+      1,
+      21,
+      0,
+      "FLOAT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6322176000000004,
+      "offset": [
+        7746.162240916091,
+        4768.056897697251
+      ]
+    },
+    "workflowRendererVersion": "LG",
+    "frontendVersion": "1.37.2",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

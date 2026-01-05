@@ -76,6 +76,12 @@ class HYMotionData:
         self.batch_size = output_dict["keypoints3d"].shape[0] if "keypoints3d" in output_dict else 1
 
 
+class HYMotionPrompterWrapper:
+    """Prompt Rewriter model wrapper"""
+    def __init__(self, rewriter):
+        self.rewriter = rewriter
+
+
 # ============================================================================
 # Node 1a: HYMotion Load LLM (HuggingFace)
 # ============================================================================
@@ -87,6 +93,7 @@ class HYMotionLoadLLM:
         return {
             "required": {
                 "quantization": (["none", "int8", "int4"], {"default": "none"}),
+                "offload_to_cpu": ("BOOLEAN", {"default": False}),
             },
         }
 
@@ -95,17 +102,21 @@ class HYMotionLoadLLM:
     FUNCTION = "load_llm"
     CATEGORY = "HY-Motion/Loaders"
 
-    def load_llm(self, quantization="none"):
+    def load_llm(self, quantization="none", offload_to_cpu=False):
         from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
         from .hymotion.network.text_encoders.model_constants import PROMPT_TEMPLATE_ENCODE_HUMAN_MOTION
 
         local_path = os.path.join(HYMOTION_MODELS_DIR, "ckpts", "Qwen3-8B")
         model_path = local_path if os.path.exists(local_path) else "Qwen/Qwen3-8B"
 
-        print(f"[HY-Motion] Loading LLM: {model_path}, quantization={quantization}")
+        print(f"[HY-Motion] Loading LLM: {model_path}, quantization={quantization}, offload_to_cpu={offload_to_cpu}")
 
         load_kwargs = {"low_cpu_mem_usage": True}
-        if quantization == "int8":
+
+        if offload_to_cpu:
+            load_kwargs["device_map"] = "cpu"
+            load_kwargs["torch_dtype"] = torch.float32
+        elif quantization == "int8":
             load_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
             load_kwargs["device_map"] = "auto"
         elif quantization == "int4":
@@ -128,7 +139,7 @@ class HYMotionLoadLLM:
         ]
         crop_start = self._compute_crop_start(tokenizer, template)
 
-        if quantization == "none":
+        if not offload_to_cpu and quantization == "none":
             device = model_management.get_torch_device()
             model = model.to(device)
 
@@ -184,6 +195,7 @@ class HYMotionLoadLLMGGUF:
         return {
             "required": {
                 "gguf_file": (gguf_files, {"default": "(select file)"}),
+                "offload_to_cpu": ("BOOLEAN", {"default": False}),
             },
         }
 
@@ -192,7 +204,7 @@ class HYMotionLoadLLMGGUF:
     FUNCTION = "load_llm_gguf"
     CATEGORY = "HY-Motion/Loaders"
 
-    def load_llm_gguf(self, gguf_file):
+    def load_llm_gguf(self, gguf_file, offload_to_cpu=False):
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from .hymotion.network.text_encoders.model_constants import PROMPT_TEMPLATE_ENCODE_HUMAN_MOTION
 
@@ -211,7 +223,7 @@ class HYMotionLoadLLMGGUF:
         if not os.path.exists(gguf_path):
             raise FileNotFoundError(f"GGUF file not found: {gguf_path}")
 
-        print(f"[HY-Motion] Loading LLM from GGUF: {gguf_path}")
+        print(f"[HY-Motion] Loading LLM from GGUF: {gguf_path}, offload_to_cpu={offload_to_cpu}")
 
         # Check transformers version for native GGUF support
         try:
@@ -228,12 +240,17 @@ class HYMotionLoadLLMGGUF:
 
             tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, padding_side="right")
 
-            model = AutoModelForCausalLM.from_pretrained(
-                gguf_dir,
-                gguf_file=gguf_filename,
-                low_cpu_mem_usage=True,
-                device_map="auto",
-            )
+            load_kwargs = {
+                "gguf_file": gguf_filename,
+                "low_cpu_mem_usage": True,
+            }
+            if offload_to_cpu:
+                load_kwargs["device_map"] = "cpu"
+                load_kwargs["torch_dtype"] = torch.float32
+            else:
+                load_kwargs["device_map"] = "auto"
+
+            model = AutoModelForCausalLM.from_pretrained(gguf_dir, **load_kwargs)
             model = model.eval().requires_grad_(False)
         else:
             print("[HY-Motion] transformers<4.40, GGUF not supported")
@@ -364,6 +381,80 @@ class HYMotionLoadNetwork:
 
         print("[HY-Motion] Network loaded")
         return (wrapper,)
+
+
+# ============================================================================
+# Node 2b: HYMotion Load Prompter
+# ============================================================================
+
+class HYMotionLoadPrompter:
+    """Load Text2MotionPrompter LLM for prompt rewriting and duration estimation"""
+
+    @classmethod
+    def INPUT_TYPES(s):
+        # Scan for local prompter models
+        prompter_models = ["(auto download)"]
+        prompter_dir = os.path.join(HYMOTION_MODELS_DIR, "ckpts", "Text2MotionPrompter")
+        if os.path.exists(prompter_dir):
+            prompter_models.append("local: Text2MotionPrompter")
+
+        return {
+            "required": {
+                "model_source": (prompter_models, {"default": "(auto download)"}),
+                "offload_to_cpu": ("BOOLEAN", {"default": False}),
+            },
+        }
+
+    RETURN_TYPES = ("HYMOTION_PROMPTER",)
+    RETURN_NAMES = ("prompter",)
+    FUNCTION = "load_prompter"
+    CATEGORY = "HY-Motion/Loaders"
+
+    def load_prompter(self, model_source, offload_to_cpu=False):
+        from .hymotion.prompt_engineering.prompt_rewrite import PromptRewriter
+
+        if model_source == "local: Text2MotionPrompter":
+            model_path = os.path.join(HYMOTION_MODELS_DIR, "ckpts", "Text2MotionPrompter")
+        else:
+            # Auto download from HuggingFace
+            model_path = "Text2MotionPrompter/Text2MotionPrompter"
+
+        print(f"[HY-Motion] Loading Prompter: {model_path}, offload_to_cpu={offload_to_cpu}")
+        rewriter = PromptRewriter(model_path=model_path, offload_to_cpu=offload_to_cpu)
+        print(f"[HY-Motion] Prompter loaded")
+
+        return (HYMotionPrompterWrapper(rewriter),)
+
+
+# ============================================================================
+# Node 2c: HYMotion Rewrite Prompt
+# ============================================================================
+
+class HYMotionRewritePrompt:
+    """Rewrite text prompt and estimate motion duration using LLM"""
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompter": ("HYMOTION_PROMPTER",),
+                "text": ("STRING", {"default": "A person is walking forward.", "multiline": True}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "FLOAT")
+    RETURN_NAMES = ("rewritten_text", "duration")
+    FUNCTION = "rewrite"
+    CATEGORY = "HY-Motion/Conditioning"
+
+    def rewrite(self, prompter: HYMotionPrompterWrapper, text: str):
+        print(f"[HY-Motion] ========== Prompt Rewrite ==========")
+        print(f"[HY-Motion] INPUT:  {text}")
+        duration, rewritten_text = prompter.rewriter.rewrite_prompt_and_infer_time(text)
+        print(f"[HY-Motion] OUTPUT: {rewritten_text}")
+        print(f"[HY-Motion] DURATION: {duration:.2f}s ({int(duration * 30)} frames)")
+        print(f"[HY-Motion] =====================================")
+        return (rewritten_text, duration)
 
 
 # ============================================================================
@@ -829,6 +920,8 @@ NODE_CLASS_MAPPINGS = {
     "HYMotionLoadLLM": HYMotionLoadLLM,
     "HYMotionLoadLLMGGUF": HYMotionLoadLLMGGUF,
     "HYMotionLoadNetwork": HYMotionLoadNetwork,
+    "HYMotionLoadPrompter": HYMotionLoadPrompter,
+    "HYMotionRewritePrompt": HYMotionRewritePrompt,
     "HYMotionEncodeText": HYMotionEncodeText,
     "HYMotionGenerate": HYMotionGenerate,
     "HYMotionPreview": HYMotionPreview,
@@ -841,6 +934,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "HYMotionLoadLLM": "HY-Motion Load LLM",
     "HYMotionLoadLLMGGUF": "HY-Motion Load LLM (GGUF)",
     "HYMotionLoadNetwork": "HY-Motion Load Network",
+    "HYMotionLoadPrompter": "HY-Motion Load Prompter",
+    "HYMotionRewritePrompt": "HY-Motion Rewrite Prompt",
     "HYMotionEncodeText": "HY-Motion Encode Text",
     "HYMotionGenerate": "HY-Motion Generate",
     "HYMotionPreview": "HY-Motion Preview",
