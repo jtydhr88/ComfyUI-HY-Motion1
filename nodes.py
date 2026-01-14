@@ -195,7 +195,7 @@ class HYMotionLoadLLMGGUF:
         return {
             "required": {
                 "gguf_file": (gguf_files, {"default": "(select file)"}),
-                "offload_to_cpu": ("BOOLEAN", {"default": False}),
+                "device_strategy": (["gpu", "cpu", "balanced"], {"default": "gpu"}),
             },
         }
 
@@ -204,7 +204,7 @@ class HYMotionLoadLLMGGUF:
     FUNCTION = "load_llm_gguf"
     CATEGORY = "HY-Motion/Loaders"
 
-    def load_llm_gguf(self, gguf_file, offload_to_cpu=False):
+    def load_llm_gguf(self, gguf_file, device_strategy="gpu"):
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from .hymotion.network.text_encoders.model_constants import PROMPT_TEMPLATE_ENCODE_HUMAN_MOTION
 
@@ -223,7 +223,7 @@ class HYMotionLoadLLMGGUF:
         if not os.path.exists(gguf_path):
             raise FileNotFoundError(f"GGUF file not found: {gguf_path}")
 
-        print(f"[HY-Motion] Loading LLM from GGUF: {gguf_path}, offload_to_cpu={offload_to_cpu}")
+        print(f"[HY-Motion] Loading LLM from GGUF: {gguf_path}, device_strategy={device_strategy}")
 
         # Check transformers version for native GGUF support
         try:
@@ -244,11 +244,47 @@ class HYMotionLoadLLMGGUF:
                 "gguf_file": gguf_filename,
                 "low_cpu_mem_usage": True,
             }
-            if offload_to_cpu:
+            
+            device = model_management.get_torch_device()
+            
+            if device_strategy == "cpu":
                 load_kwargs["device_map"] = "cpu"
                 load_kwargs["torch_dtype"] = torch.float32
-            else:
-                load_kwargs["device_map"] = "auto"
+            elif device_strategy == "balanced":
+                # Balanced: split between CPU and GPU (approximately half on each)
+                if device.type == "cuda":
+                    device_index = device.index if device.index is not None else 0
+                    # Use auto device map with max_memory constraints to force CPU offloading
+                    # This will automatically split layers between GPU and CPU
+                    load_kwargs["device_map"] = "auto"
+                    # Set max_memory to limit GPU usage - using ~50% will force half to CPU
+                    if torch.cuda.is_available():
+                        gpu_memory = torch.cuda.get_device_properties(device_index).total_memory
+                        # Limit GPU to approximately 50% of available memory to force CPU offloading
+                        # Convert bytes to GiB for max_memory (1 GiB = 1024^3 bytes)
+                        gpu_limit_gib = max(1, int((gpu_memory * 0.5) / (1024**3)))  # At least 1 GiB
+                        # Set high CPU memory limit to avoid disk offloading
+                        load_kwargs["max_memory"] = {device_index: f"{gpu_limit_gib}GiB", "cpu": "100GiB"}
+                        # Create a temporary offload folder as fallback (required if disk offloading occurs)
+                        import tempfile
+                        offload_folder = tempfile.mkdtemp(prefix="hymotion_offload_")
+                        load_kwargs["offload_folder"] = offload_folder
+                        print(f"[HY-Motion] Balanced mode: limiting GPU {device_index} to {gpu_limit_gib}GiB, rest on CPU")
+                        print(f"[HY-Motion] Offload folder (fallback): {offload_folder}")
+                else:
+                    # No GPU available, fallback to CPU
+                    load_kwargs["device_map"] = "cpu"
+                    load_kwargs["torch_dtype"] = torch.float32
+            else:  # device_strategy == "gpu"
+                # Use explicit GPU device map to avoid disk offloading
+                if device.type == "cuda":
+                    # Map all layers to the GPU device
+                    device_index = device.index if device.index is not None else 0
+                    load_kwargs["device_map"] = {"": device_index}
+                else:
+                    # Fallback to CPU if no GPU available
+                    load_kwargs["device_map"] = "cpu"
+                    load_kwargs["torch_dtype"] = torch.float32
 
             model = AutoModelForCausalLM.from_pretrained(gguf_dir, **load_kwargs)
             model = model.eval().requires_grad_(False)
