@@ -45,11 +45,34 @@ ComfyUI/
             │   └── HY-Motion-1.0-Lite/
             │       ├── config.yml
             │       └── latest.ckpt
-            └── GGUF/                    # Optional: for GGUF models
-                └── Qwen3-8B-Q4_K_M.gguf
- 	         └── clip-vit-large-patch14
-            └── Qwen3-0.6B （如果你只使用gguf模型，那这里只下载配置文件即可）
+            ├── GGUF/                    # Optional: for GGUF models
+            │   └── Qwen3-8B-Q4_K_M.gguf
+            ├── clip-vit-large-patch14   # Required for text encoding
+            ├── Qwen3-0.6B              # Optional: lightweight alternative
+            ├── Qwen3-8B-bnb-4bit/       # Optional: bnb-4bit quantized
+            └── Qwen3-8B-AWQ/           # Optional: AWQ quantized
 ```
+
+### 3. Install Additional Dependencies (Optional)
+
+#### For AWQ Models
+
+To use AWQ quantized models, install the auto-awq package:
+
+```bash
+pip install auto-awq
+```
+
+If auto-awq installation fails, the system will automatically fall back to regular loading.
+
+### 4. Model Download Links
+
+| Model             | Source                                                                    | VRAM Required |
+| ----------------- | ------------------------------------------------------------------------- | ------------- |
+| Qwen3-8B-bnb-4bit | [unsloth/Qwen3-8B-bnb-4bit](https://hf-mirror.com/unsloth/Qwen3-8B-bnb-4bit) | ~4-5GB        |
+| Qwen3-8B-AWQ      | [Qwen/Qwen3-8B-AWQ](https://hf-mirror.com/Qwen/Qwen3-8B-AWQ)                 | ~3-4GB        |
+| Qwen3-8B-GGUF     | [Qwen/Qwen3-8B-GGUF](https://hf-mirror.com/Qwen/Qwen3-8B-GGUF)               | ~5GB (Q4_K_M) |
+| HY-Motion-1.0     | [tencent/HY-Motion-1.0](https://hf-mirror.com/tencent/HY-Motion-1.0)         | ~8GB+         |
 
 Download using huggingface-cli:
 
@@ -69,10 +92,47 @@ or manually download from https://huggingface.co/tencent/HY-Motion-1.0/tree/main
 
 Load Qwen3-8B LLM from HuggingFace (supports BitsAndBytes quantization).
 
-| Parameter      | Description                                              |
-| -------------- | -------------------------------------------------------- |
-| quantization   | Quantization mode:`none` / `int8` / `int4`         |
-| offload_to_cpu | Load model on CPU instead of GPU (slower but saves VRAM) |
+| Parameter      | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| model_name     | Select Qwen3 model from the list                                          |
+| quantization   | Quantization mode:`none` / `int8` / `int4` / `bnb-4bit` / `awq` |
+| offload_to_cpu | Load model on CPU instead of GPU (slower but saves VRAM)                  |
+
+### Supported Models
+
+#### Qwen3-8B-bnb-4bit
+
+- **Source**: [unsloth/Qwen3-8B-bnb-4bit](https://hf-mirror.com/unsloth/Qwen3-8B-bnb-4bit)
+- **Quantization**: BitsAndBytes 4-bit
+- **VRAM Required**: ~4-5GB
+- **Installation**: Place in `ComfyUI/models/HY-Motion/ckpts/Qwen3-8B-bnb-4bit/`
+
+#### Qwen3-8B-AWQ
+
+- **Source**: [Qwen/Qwen3-8B-AWQ](https://hf-mirror.com/Qwen/Qwen3-8B-AWQ)
+- **Quantization**: AWQ (Activation-aware Weight Quantization)
+- **VRAM Required**: ~3-4GB
+- **Installation**: Place in `ComfyUI/models/HY-Motion/ckpts/Qwen3-8B-AWQ/`
+
+#### Traditional Models
+
+- **Qwen3-8B**: Full precision (16GB+ VRAM)
+- **Qwen3-8B-int8**: 8-bit quantization (~8GB VRAM)
+- **Qwen3-8B-int4**: 4-bit quantization (~4GB VRAM)
+
+### Memory Optimization
+
+The new quantized models offer significant memory savings:
+
+| Model Format      | VRAM Required | Loading Speed | Quality    |
+| ----------------- | ------------- | ------------- | ---------- |
+| Qwen3-8B (full)   | ~16GB         | Slow          | Best       |
+| Qwen3-8B-int8     | ~8GB          | Medium        | Good       |
+| Qwen3-8B-int4     | ~4GB          | Fast          | Acceptable |
+| Qwen3-8B-bnb-4bit | ~4-5GB        | Fast          | Good       |
+| Qwen3-8B-AWQ      | ~3-4GB        | Very Fast     | Very Good  |
+
+**Recommendation**: For most systems, use Qwen3-8B-AWQ or Qwen3-8B-bnb-4bit for the best balance of speed and quality with minimal memory usage.
 
 ### HY-Motion Load LLM (GGUF)
 
