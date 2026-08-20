@@ -7,3 +7,4 @@ omegaconf>=2.3.0
 accelerate>=0.30.0
 huggingface_hub>=0.30.0
 bitsandbytes>=0.42.0
+pygltflib>=1.16.0

@@ -22,13 +22,43 @@ except ImportError:
     COMFY_OUTPUT_DIR = os.path.join(os.path.dirname(CURRENT_DIR), "output")
 
 HYMOTION_MODELS_DIR = os.path.join(COMFY_MODELS_DIR, "HY-Motion")
+
 try:
-    folder_paths.add_model_folder_path("hymotion_gguf",
-        os.path.join(HYMOTION_MODELS_DIR, "ckpts", "GGUF"))
-    folder_paths.add_model_folder_path("hymotion_gguf",
-        os.path.join(COMFY_MODELS_DIR, "llm", "GGUF"))
-    folder_paths.add_model_folder_path("hymotion_gguf",
-        os.path.join(COMFY_MODELS_DIR, "LLM", "GGUF"))
+    folder_paths.add_model_folder_path("hymotion", HYMOTION_MODELS_DIR)
+except Exception:
+    pass
+
+
+def _hymotion_base_dirs():
+    """All registered HY-Motion base dirs. extra_model_paths.yaml entries come
+    first when is_default; the default models/HY-Motion is always included so
+    behavior is unchanged without a yaml entry."""
+    try:
+        dirs = list(folder_paths.get_folder_paths("hymotion"))
+    except Exception:
+        dirs = []
+    if HYMOTION_MODELS_DIR not in dirs:
+        dirs.append(HYMOTION_MODELS_DIR)
+    return dirs
+
+
+def _llm_base_dirs():
+    """Native `<model_root>/LLM` dir alongside every HY-Motion base dir."""
+    dirs = []
+    for base in _hymotion_base_dirs():
+        llm = os.path.join(os.path.dirname(base), "LLM")
+        if llm not in dirs:
+            dirs.append(llm)
+    return dirs
+
+
+try:
+    for _base in _hymotion_base_dirs():
+        folder_paths.add_model_folder_path(
+            "hymotion_gguf", os.path.join(_base, "ckpts", "GGUF"))
+    for _llm in _llm_base_dirs():
+        folder_paths.add_model_folder_path(
+            "hymotion_gguf", os.path.join(_llm, "GGUF"))
 
     if "hymotion_gguf" in folder_paths.folder_names_and_paths:
         paths = folder_paths.folder_names_and_paths["hymotion_gguf"][0]
@@ -68,10 +98,11 @@ _CLIP_VARIANTS = [
 
 
 def _find_clip_dir():
-    for variant in _CLIP_VARIANTS:
-        test_path = os.path.join(HYMOTION_MODELS_DIR, "ckpts", variant)
-        if os.path.exists(test_path):
-            return test_path
+    for base in _hymotion_base_dirs():
+        for variant in _CLIP_VARIANTS:
+            test_path = os.path.join(base, "ckpts", variant)
+            if os.path.exists(test_path):
+                return test_path
 
     try:
         for folder in folder_paths.get_folder_paths("text_encoders"):
@@ -112,26 +143,27 @@ def _scan_llm_dirs():
             seen.add(name)
             found.append(name)
 
-    qwen_dir = os.path.join(HYMOTION_MODELS_DIR, "ckpts")
-    if os.path.exists(qwen_dir):
-        for f in os.listdir(qwen_dir):
-            full_path = os.path.join(qwen_dir, f)
-            if os.path.isdir(full_path):
-                fl = f.lower()
-                if "qwen3" in fl or "qwen-3" in fl or "bnb-4bit" in fl or "awq" in fl:
-                    _add(f)
-
-    try:
-        llm_dir = os.path.join(COMFY_MODELS_DIR, "LLM")
-        if os.path.exists(llm_dir):
-            for f in os.listdir(llm_dir):
-                full_path = os.path.join(llm_dir, f)
+    for base in _hymotion_base_dirs():
+        qwen_dir = os.path.join(base, "ckpts")
+        if os.path.exists(qwen_dir):
+            for f in os.listdir(qwen_dir):
+                full_path = os.path.join(qwen_dir, f)
                 if os.path.isdir(full_path):
                     fl = f.lower()
-                    if "qwen3" in fl or "qwen-3" in fl:
+                    if "qwen3" in fl or "qwen-3" in fl or "bnb-4bit" in fl or "awq" in fl:
                         _add(f)
-    except Exception:
-        pass
+
+    for llm_dir in _llm_base_dirs():
+        try:
+            if os.path.exists(llm_dir):
+                for f in os.listdir(llm_dir):
+                    full_path = os.path.join(llm_dir, f)
+                    if os.path.isdir(full_path):
+                        fl = f.lower()
+                        if "qwen3" in fl or "qwen-3" in fl:
+                            _add(f)
+        except Exception:
+            pass
 
     return found
 
@@ -142,11 +174,9 @@ def _scan_gguf_files():
         return folder_paths.get_filename_list("hymotion_gguf")
     except Exception:
         found = []
-        for d in [
-            os.path.join(HYMOTION_MODELS_DIR, "ckpts", "GGUF"),
-            os.path.join(COMFY_MODELS_DIR, "llm", "GGUF"),
-            os.path.join(COMFY_MODELS_DIR, "LLM", "GGUF"),
-        ]:
+        candidates = [os.path.join(b, "ckpts", "GGUF") for b in _hymotion_base_dirs()]
+        candidates += [os.path.join(llm, "GGUF") for llm in _llm_base_dirs()]
+        for d in candidates:
             if os.path.exists(d):
                 for root, _dirs, files in os.walk(d):
                     for f in files:
@@ -161,15 +191,16 @@ def _scan_hymotion_networks():
     found = []
     seen = set()
 
-    tencent_dir = os.path.join(HYMOTION_MODELS_DIR, "ckpts", "tencent")
-    if os.path.exists(tencent_dir):
-        for name in os.listdir(tencent_dir):
-            model_dir = os.path.join(tencent_dir, name)
-            config_path = os.path.join(model_dir, "config.yml")
-            if os.path.isdir(model_dir) and os.path.exists(config_path):
-                if name not in seen:
-                    seen.add(name)
-                    found.append(name)
+    for base in _hymotion_base_dirs():
+        tencent_dir = os.path.join(base, "ckpts", "tencent")
+        if os.path.exists(tencent_dir):
+            for name in os.listdir(tencent_dir):
+                model_dir = os.path.join(tencent_dir, name)
+                config_path = os.path.join(model_dir, "config.yml")
+                if os.path.isdir(model_dir) and os.path.exists(config_path):
+                    if name not in seen:
+                        seen.add(name)
+                        found.append(name)
 
     for folder_type in ("checkpoints", "diffusion_models"):
         try:
@@ -189,18 +220,19 @@ def _resolve_network_model(model_name):
     Searches tencent directory first, then ComfyUI native folders."""
     import yaml
 
-    model_dir = os.path.join(HYMOTION_MODELS_DIR, "ckpts", "tencent", model_name)
-    config_path = os.path.join(model_dir, "config.yml")
-    if os.path.exists(config_path):
-        with open(config_path, "r") as f:
-            config = yaml.load(f, Loader=yaml.FullLoader)
-        ckpt_path = os.path.join(model_dir, "latest.ckpt")
-        if not os.path.exists(ckpt_path):
-            ckpt_path = None
-        stats_dir = os.path.join(model_dir, "stats")
-        if not os.path.exists(stats_dir):
-            stats_dir = None
-        return config, ckpt_path, stats_dir
+    for base in _hymotion_base_dirs():
+        model_dir = os.path.join(base, "ckpts", "tencent", model_name)
+        config_path = os.path.join(model_dir, "config.yml")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                config = yaml.load(f, Loader=yaml.FullLoader)
+            ckpt_path = os.path.join(model_dir, "latest.ckpt")
+            if not os.path.exists(ckpt_path):
+                ckpt_path = None
+            stats_dir = os.path.join(model_dir, "stats")
+            if not os.path.exists(stats_dir):
+                stats_dir = None
+            return config, ckpt_path, stats_dir
 
     if model_name in _BUILTIN_CONFIGS:
         config = _BUILTIN_CONFIGS[model_name]
@@ -306,20 +338,28 @@ class HYMotionLoadLLM:
         from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
         from .hymotion.network.text_encoders.model_constants import PROMPT_TEMPLATE_ENCODE_HUMAN_MOTION
 
-        # Search multiple locations for LLM directory
-        local_path = os.path.join(HYMOTION_MODELS_DIR, "ckpts", model_name)
-        if not os.path.exists(local_path):
-            # Try ComfyUI native LLM folder
-            alt_path = os.path.join(COMFY_MODELS_DIR, "LLM", model_name)
-            if os.path.exists(alt_path):
-                local_path = alt_path
-            else:
-                raise FileNotFoundError(
-                    f"LLM directory not found. Searched:\n"
-                    f"  1. {os.path.join(HYMOTION_MODELS_DIR, 'ckpts', model_name)}\n"
-                    f"  2. {alt_path}\n"
-                    f"Please download {model_name} and place it in either location."
-                )
+        # Search every registered HY-Motion base dir plus native LLM dirs.
+        searched = []
+        local_path = None
+        for base in _hymotion_base_dirs():
+            candidate = os.path.join(base, "ckpts", model_name)
+            searched.append(candidate)
+            if os.path.exists(candidate):
+                local_path = candidate
+                break
+        if local_path is None:
+            for llm in _llm_base_dirs():
+                candidate = os.path.join(llm, model_name)
+                searched.append(candidate)
+                if os.path.exists(candidate):
+                    local_path = candidate
+                    break
+        if local_path is None:
+            listing = "\n".join(f"  {i}. {p}" for i, p in enumerate(searched, 1))
+            raise FileNotFoundError(
+                f"LLM directory not found. Searched:\n{listing}\n"
+                f"Please download {model_name} and place it in any of these locations."
+            )
 
         print(f"[HY-Motion] Loading LLM: {local_path}, quantization={quantization}, offload_to_cpu={offload_to_cpu}")
 
@@ -512,12 +552,16 @@ class HYMotionLoadLLMGGUF:
         
         # 尝试2: 从所有可用的Qwen3目录加载tokenizer
         if not tokenizer_loaded:
-            qwen_dir = os.path.join(HYMOTION_MODELS_DIR, "ckpts")
-            if os.path.exists(qwen_dir):
+            qwen_dirs = [os.path.join(b, "ckpts") for b in _hymotion_base_dirs()]
+            for qwen_dir in qwen_dirs:
+                if tokenizer_loaded:
+                    break
+                if not os.path.exists(qwen_dir):
+                    continue
                 for f in os.listdir(qwen_dir):
                     if tokenizer_loaded:
                         break
-                    
+
                     full_path = os.path.join(qwen_dir, f)
                     if os.path.isdir(full_path) and ("qwen3" in f.lower() or "qwen-3" in f.lower()):
                         try:
@@ -536,7 +580,11 @@ class HYMotionLoadLLMGGUF:
         
         # 尝试3: 从默认的Qwen3-8B目录加载tokenizer
         if not tokenizer_loaded:
-            default_tokenizer_path = os.path.join(HYMOTION_MODELS_DIR, "ckpts", "Qwen3-8B")
+            default_tokenizer_path = next(
+                (p for p in (os.path.join(b, "ckpts", "Qwen3-8B") for b in _hymotion_base_dirs())
+                 if os.path.exists(p)),
+                os.path.join(HYMOTION_MODELS_DIR, "ckpts", "Qwen3-8B"),
+            )
             if os.path.exists(default_tokenizer_path):
                 try:
                     # 再次清理内存
@@ -590,8 +638,7 @@ class HYMotionLoadLLMGGUF:
                 "use_safetensors": False,  # GGUF不需要safetensors
                 "attn_implementation": "eager",  # 使用内存效率更高的attention实现
                 "use_cache": False,  # 禁用缓存以减少内存使用
-                "force_download": False,
-                "resume_download": False
+                "force_download": False
             }
             
             device = model_management.get_torch_device()
@@ -854,8 +901,7 @@ class HYMotionLoadLLMGGUF:
                             "cpu": f"{cpu_memory_limit}GiB"  # 严格限制CPU内存使用
                         },
                         "use_cache": False,
-                        "force_download": False,
-                        "resume_download": False
+                        "force_download": False
                     }
                     
                     # 打印详细信息
@@ -1138,8 +1184,8 @@ class HYMotionLoadPrompter:
     def INPUT_TYPES(s):
         # Scan for local prompter models
         prompter_models = ["(auto download)"]
-        prompter_dir = os.path.join(HYMOTION_MODELS_DIR, "ckpts", "Text2MotionPrompter")
-        if os.path.exists(prompter_dir):
+        if any(os.path.exists(os.path.join(b, "ckpts", "Text2MotionPrompter"))
+               for b in _hymotion_base_dirs()):
             prompter_models.append("local: Text2MotionPrompter")
 
         return {
@@ -1158,9 +1204,17 @@ class HYMotionLoadPrompter:
         from .hymotion.prompt_engineering.prompt_rewrite import PromptRewriter
 
         if model_source == "local: Text2MotionPrompter":
-            model_path = os.path.join(HYMOTION_MODELS_DIR, "ckpts", "Text2MotionPrompter")
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(f"Prompter model directory not found: {model_path}. Please download the Text2MotionPrompter model first and place it in the HY-Motion models directory.")
+            model_path = next(
+                (p for p in (os.path.join(b, "ckpts", "Text2MotionPrompter") for b in _hymotion_base_dirs())
+                 if os.path.exists(p)),
+                None,
+            )
+            if model_path is None:
+                raise FileNotFoundError(
+                    "Prompter model directory not found in any HY-Motion ckpts dir "
+                    f"({', '.join(_hymotion_base_dirs())}). Please download the "
+                    "Text2MotionPrompter model first and place it under ckpts/Text2MotionPrompter."
+                )
         else:
             # Auto download from HuggingFace - not recommended for offline use
             model_path = "Text2MotionPrompter/Text2MotionPrompter"
@@ -1827,6 +1881,169 @@ class HYMotionExportFBX:
 
 
 # ============================================================================
+# Node 7b: HYMotion Export GLB (Mixamo retarget, mesh+skin+materials preserved)
+# ============================================================================
+
+class HYMotionExportGLB:
+    """Retarget HY-Motion SMPL-H motion onto a Mixamo-rigged .glb character.
+
+    The output GLB preserves the source character's mesh, skin and materials —
+    only animations are replaced with the retargeted clip.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "motion_data": ("HYMOTION_DATA",),
+                "target_glb_path": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "tooltip": "Path to a Mixamo-rigged .glb character. Supports 'input/3d/char.glb', 'output/3d/char.glb', '3d/char.glb' (defaults to input/), or absolute paths."
+                }),
+                "output_dir": ("STRING", {"default": "hymotion_glb"}),
+                "filename_prefix": ("STRING", {"default": "motion"}),
+            },
+            "optional": {
+                "yaw_offset": ("FLOAT", {
+                    "default": 0.0,
+                    "min": -180.0,
+                    "max": 180.0,
+                    "step": 1.0,
+                    "tooltip": "Rotate the character around Y-axis in degrees."
+                }),
+                "scale": ("FLOAT", {
+                    "default": 0.0,
+                    "min": 0.0,
+                    "max": 10.0,
+                    "step": 0.01,
+                    "tooltip": "Force a specific scale multiplier. 0.0 = automatic height-based scaling."
+                }),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("glb_paths",)
+    FUNCTION = "export"
+    CATEGORY = "HY-Motion"
+    OUTPUT_NODE = True
+
+    def _resolve_glb_path(self, target_glb_path):
+        if not target_glb_path or not target_glb_path.strip():
+            return None
+        path = target_glb_path.strip().replace("\\", "/")
+        if os.path.isabs(path) and os.path.exists(path):
+            return path
+        comfy_root = os.path.dirname(COMFY_OUTPUT_DIR)
+        if path.startswith("input/") or path.startswith("output/"):
+            resolved = os.path.join(comfy_root, path)
+        else:
+            resolved = os.path.join(comfy_root, "input", path)
+        resolved = os.path.normpath(resolved)
+        if os.path.exists(resolved):
+            return resolved
+        print(f"[HY-Motion] Target GLB path not found: {resolved}")
+        return None
+
+    def export(self, motion_data, target_glb_path, output_dir, filename_prefix,
+               yaw_offset=0.0, scale=0.0):
+        from .hymotion.pipeline.body_model import construct_smpl_data_dict
+
+        print(f"[HY-Motion] ========== EXPORT GLB ==========")
+        print(f"[HY-Motion] target_glb_path = '{target_glb_path}'")
+        print(f"[HY-Motion] yaw_offset = {yaw_offset}, scale = {scale}")
+
+        resolved = self._resolve_glb_path(target_glb_path)
+        if not resolved:
+            return ("Target GLB path not found — provide a Mixamo-rigged .glb",)
+
+        try:
+            from .hymotion.utils.retarget_fbx import (
+                load_npz, load_bone_mapping, retarget_animation,
+            )
+            from .hymotion.utils.retarget_glb import (
+                load_glb, apply_retargeted_animation_glb, save_glb,
+                HAS_PYGLTFLIB,
+            )
+        except ImportError as e:
+            return (f"Retarget module import error: {e}",)
+
+        if not HAS_PYGLTFLIB:
+            return ("pygltflib not installed. Run: pip install pygltflib",)
+
+        out_dir = os.path.join(COMFY_OUTPUT_DIR, output_dir)
+        os.makedirs(out_dir, exist_ok=True)
+        ts, uid = get_timestamp(), str(uuid.uuid4())[:8]
+
+        mapping = load_bone_mapping("")  # built-in Mixamo mappings
+        paths = []
+
+        for i in range(motion_data.batch_size):
+            temp_npz = os.path.join(out_dir, f"_temp_{ts}_{i}.npz")
+            output_glb = os.path.join(out_dir, f"{filename_prefix}_{ts}_{uid}_{i:03d}.glb")
+
+            try:
+                # Build temp NPZ from motion_data (same shape as FBX path)
+                data_dict = {}
+                for key in ['keypoints3d', 'rot6d', 'transl', 'root_rotations_mat']:
+                    val = motion_data.output_dict.get(key)
+                    if val is None:
+                        continue
+                    tensor = val[i]
+                    if isinstance(tensor, torch.Tensor):
+                        data_dict[key] = tensor.cpu().numpy()
+                    else:
+                        data_dict[key] = np.array(tensor)
+
+                if "rot6d" in data_dict and "transl" in data_dict:
+                    smpl_data = construct_smpl_data_dict(
+                        torch.from_numpy(data_dict["rot6d"]),
+                        torch.from_numpy(data_dict["transl"]),
+                    )
+                    for k, v in smpl_data.items():
+                        data_dict.setdefault(k, v)
+
+                np.savez(temp_npz, **data_dict)
+
+                src_skel = load_npz(temp_npz)
+                ctx, tgt_skel = load_glb(resolved)
+
+                force_scale = scale if scale > 0 else 0.0
+                rots, locs = retarget_animation(
+                    src_skel, tgt_skel, mapping,
+                    force_scale=force_scale, yaw_offset=yaw_offset,
+                    neutral_fingers=True,
+                )
+
+                apply_retargeted_animation_glb(
+                    ctx, tgt_skel, rots, locs,
+                    src_skel.frame_start, src_skel.frame_end,
+                    fps=src_skel.fps,
+                )
+                save_glb(ctx, output_glb)
+                paths.append(output_glb)
+
+                txt_path = output_glb.replace(".glb", ".txt")
+                with open(txt_path, "w", encoding="utf-8") as f:
+                    f.write(motion_data.text)
+
+            except Exception as e:
+                import traceback
+                print(f"[HY-Motion] GLB retarget error for batch {i}: {e}")
+                traceback.print_exc()
+            finally:
+                if os.path.exists(temp_npz):
+                    try:
+                        os.remove(temp_npz)
+                    except OSError:
+                        pass
+
+        if not paths:
+            return ("Export failed",)
+        return ("\n".join([os.path.relpath(p, COMFY_OUTPUT_DIR) for p in paths]),)
+
+
+# ============================================================================
 # Node 8: HYMotion Preview Animation (Three.js with GLB Export)
 # ============================================================================
 
@@ -1915,6 +2132,7 @@ NODE_CLASS_MAPPINGS = {
     "HYMotionPreview": HYMotionPreview,
     "HYMotionSaveNPZ": HYMotionSaveNPZ,
     "HYMotionExportFBX": HYMotionExportFBX,
+    "HYMotionExportGLB": HYMotionExportGLB,
     "HYMotionPreviewAnimation": HYMotionPreviewAnimation,
 }
 
@@ -1929,5 +2147,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "HYMotionPreview": "HY-Motion Preview",
     "HYMotionSaveNPZ": "HY-Motion Save NPZ",
     "HYMotionExportFBX": "HY-Motion Export FBX",
+    "HYMotionExportGLB": "HY-Motion Export GLB (Mixamo)",
     "HYMotionPreviewAnimation": "HY-Motion Preview Animation (3D)",
 }
